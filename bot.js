@@ -18,7 +18,7 @@ class VanityMonitorBot {
             ],
         });
 
-        this.monitoredVanities = new Map();
+        this.monitoredVanities = new Map(); // Key: `${guildId}_${vanityUrl}`, Value: monitoring data
         this.dataFile = "./vanity_data.json";
         this.checkInterval = 30000;
 
@@ -109,7 +109,10 @@ class VanityMonitorBot {
             );
         }
 
-        const existingEntry = this.monitoredVanities.get(vanityUrl);
+        const guildId = message.guild?.id || "dm";
+        const vanityKey = `${guildId}_${vanityUrl}`;
+        
+        const existingEntry = this.monitoredVanities.get(vanityKey);
         if (existingEntry && existingEntry.userId === message.author.id) {
             return message.reply(
                 `You are already monitoring the vanity: **${vanityUrl}**`,
@@ -123,10 +126,11 @@ class VanityMonitorBot {
             );
         }
 
-        this.monitoredVanities.set(vanityUrl, {
+        this.monitoredVanities.set(vanityKey, {
             userId: message.author.id,
             channelId: message.channel.id,
-            guildId: message.guild?.id || null,
+            guildId: guildId,
+            vanityUrl: vanityUrl,
             addedAt: Date.now(),
         });
 
@@ -155,7 +159,10 @@ class VanityMonitorBot {
         }
 
         const vanityUrl = args[1].toLowerCase().replace(/[^a-z0-9-]/g, "");
-        const entry = this.monitoredVanities.get(vanityUrl);
+        const guildId = message.guild?.id || "dm";
+        const vanityKey = `${guildId}_${vanityUrl}`;
+        
+        const entry = this.monitoredVanities.get(vanityKey);
 
         if (!entry || entry.userId !== message.author.id) {
             return message.reply(
@@ -163,7 +170,7 @@ class VanityMonitorBot {
             );
         }
 
-        this.monitoredVanities.delete(vanityUrl);
+        this.monitoredVanities.delete(vanityKey);
         await this.saveData();
 
         const embed = new EmbedBuilder()
