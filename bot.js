@@ -29,7 +29,13 @@ class VanityMonitorBot {
     setupEventHandlers() {
         this.client.once("ready", () => {
             console.log(`${this.client.user.tag} is online!`);
+            this.sendCreditsMessage();
             this.startMonitoring();
+        });
+
+        this.client.on("guildCreate", async (guild) => {
+            console.log(`Bot added to new server: ${guild.name}`);
+            this.sendCreditsMessageToGuild(guild);
         });
 
         this.client.on("messageCreate", async (message) => {
@@ -48,6 +54,44 @@ class VanityMonitorBot {
                 await this.handleHelpCommand(message);
             }
         });
+    }
+
+    async sendCreditsMessage() {
+        // Send credits message to all guilds when bot comes online
+        for (const guild of this.client.guilds.cache.values()) {
+            await this.sendCreditsMessageToGuild(guild);
+        }
+    }
+
+    async sendCreditsMessageToGuild(guild) {
+        try {
+            // Find the first text channel the bot can send messages to
+            const channel = guild.channels.cache.find(
+                channel => 
+                    channel.type === 0 && // Text channel
+                    channel.permissionsFor(guild.members.me).has(PermissionsBitField.Flags.SendMessages)
+            );
+
+            if (channel) {
+                const embed = new EmbedBuilder()
+                    .setColor("#7289da")
+                    .setTitle("🤖 Vanity Monitor Bot")
+                    .setDescription("This bot was made by oxy @bored_vampire on discord and @adose on telegram")
+                    .addFields(
+                        {
+                            name: "Get Started",
+                            value: "Use `,help` to see all available commands",
+                            inline: false,
+                        }
+                    )
+                    .setTimestamp();
+
+                await channel.send({ embeds: [embed] });
+                console.log(`Sent credits message to ${guild.name}`);
+            }
+        } catch (error) {
+            console.error(`Failed to send credits message to ${guild.name}:`, error.message);
+        }
     }
 
     async handleAddCommand(message, args) {
