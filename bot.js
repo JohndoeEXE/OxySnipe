@@ -183,13 +183,18 @@ class VanityMonitorBot {
     }
 
     async handleListCommand(message) {
+        const guildId = message.guild?.id || "dm";
+        
         const userVanities = Array.from(
             this.monitoredVanities.entries(),
-        ).filter(([vanity, data]) => data.userId === message.author.id);
+        ).filter(([key, data]) => {
+            const [keyGuildId] = key.split('_');
+            return keyGuildId === guildId && data.userId === message.author.id;
+        });
 
         if (userVanities.length === 0) {
             return message.reply(
-                "You are not monitoring any vanities. Use `,add vanity <vanity_url>` to start monitoring.",
+                "You are not monitoring any vanities in this server. Use `,add vanity <vanity_url>` to start monitoring.",
             );
         }
 
@@ -198,11 +203,11 @@ class VanityMonitorBot {
             .setTitle("📋 Your Monitored Vanities")
             .setDescription(
                 userVanities
-                    .map(([vanity]) => `• discord.gg/${vanity}`)
+                    .map(([key, data]) => `• discord.gg/${data.vanityUrl}`)
                     .join("\n"),
             )
             .setFooter({
-                text: `Total: ${userVanities.length} vanit${userVanities.length === 1 ? "y" : "ies"}`,
+                text: `Total: ${userVanities.length} vanit${userVanities.length === 1 ? "y" : "ies"} in this server`,
             })
             .setTimestamp();
 
@@ -214,7 +219,7 @@ class VanityMonitorBot {
             .setColor("#7289da")
             .setTitle("🤖 Vanity Monitor Bot - Help")
             .setDescription(
-                "Monitor Discord server vanities and get notified when they become available!",
+                "Monitor Discord server vanities and get notified when they become available!\n\n**This bot was made by oxy @bored_vampire on discord and @adose on telegram**",
             )
             .addFields(
                 {
@@ -229,7 +234,7 @@ class VanityMonitorBot {
                 },
                 {
                     name: "`,list`",
-                    value: "List all vanities you are monitoring",
+                    value: "List all vanities you are monitoring in this server",
                     inline: false,
                 },
                 {
@@ -238,7 +243,7 @@ class VanityMonitorBot {
                     inline: false,
                 },
             )
-            .setFooter({ text: "Checks every 30 seconds for availability" })
+            .setFooter({ text: "Checks every 30 seconds for availability • Each server has its own vanity list" })
             .setTimestamp();
 
         message.reply({ embeds: [embed] });
@@ -270,18 +275,18 @@ class VanityMonitorBot {
         console.log("Starting vanity monitoring...");
 
         setInterval(async () => {
-            for (const [vanityUrl, data] of this.monitoredVanities.entries()) {
+            for (const [vanityKey, data] of this.monitoredVanities.entries()) {
                 try {
-                    const exists = await this.checkVanityExists(vanityUrl);
+                    const exists = await this.checkVanityExists(data.vanityUrl);
 
                     if (!exists) {
-                        await this.notifyVanityAvailable(vanityUrl, data);
-                        this.monitoredVanities.delete(vanityUrl);
+                        await this.notifyVanityAvailable(data.vanityUrl, data);
+                        this.monitoredVanities.delete(vanityKey);
                         await this.saveData();
                     }
                 } catch (error) {
                     console.error(
-                        `Error monitoring vanity ${vanityUrl}:`,
+                        `Error monitoring vanity ${data.vanityUrl}:`,
                         error.message,
                     );
                 }
@@ -337,10 +342,48 @@ class VanityMonitorBot {
         try {
             const data = await fs.readFile(this.dataFile, "utf8");
             const parsed = JSON.parse(data);
-            this.monitoredVanities = new Map(Object.entries(parsed));
-            console.log(
-                `Loaded ${this.monitoredVanities.size} monitored vanities`,
-            );
+            
+            // Check if data needs migration from old format
+            const entries = Object.entries(parsed);
+            let needsMigration = false;
+            
+            for (const [key, value] of entries) {
+                // Old format: key is just vanityUrl, new format: key is guildId_vanityUrl
+                if (!key.includes('_') || !value.vanityUrl) {
+                    needsMigration = true;
+                    break;
+                }
+            }
+            
+            if (needsMigration) {
+                console.log("Migrating data from old format to new server-specific format...");
+                const migratedData = new Map();
+                
+                for (const [oldKey, value] of entries) {
+                    // If it's old format (key is just vanityUrl)
+                    if (!oldKey.includes('_')) {
+                        const guildId = value.guildId || 'dm';
+                        const vanityUrl = oldKey;
+                        const newKey = `${guildId}_${vanityUrl}`;
+                        
+                        migratedData.set(newKey, {
+                            ...value,
+                            vanityUrl: vanityUrl
+                        });
+                    } else {
+                        // Already new format
+                        migratedData.set(oldKey, value);
+                    }
+                }
+                
+                this.monitoredVanities = migratedData;
+                await this.saveData(); // Save migrated data
+                console.log(`Migrated and loaded ${this.monitoredVanities.size} monitored vanities`);
+            } else {
+                // Data is already in new format
+                this.monitoredVanities = new Map(entries);
+                console.log(`Loaded ${this.monitoredVanities.size} monitored vanities`);
+            }
         } catch (error) {
             console.log("No existing data file found, starting fresh");
         }
