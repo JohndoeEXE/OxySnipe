@@ -1,0 +1,4 @@
+node_modules/
+.env
+vanity_data.json
+*.log
