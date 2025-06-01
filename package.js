@@ -1,0 +1,17 @@
+{
+  "name": "vanity-monitor-bot",
+  "version": "1.0.0",
+  "description": "Discord vanity monitor bot",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.14.1",
+    "axios": "^1.6.0",
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  }
+}

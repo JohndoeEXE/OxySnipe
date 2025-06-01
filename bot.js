@@ -1,0 +1,348 @@
+const {
+    Client,
+    GatewayIntentBits,
+    EmbedBuilder,
+    PermissionsBitField,
+} = require("discord.js");
+const axios = require("axios");
+const fs = require("fs").promises;
+const express = require("express");
+
+class VanityMonitorBot {
+    constructor() {
+        this.client = new Client({
+            intents: [
+                GatewayIntentBits.Guilds,
+                GatewayIntentBits.GuildMessages,
+                GatewayIntentBits.MessageContent,
+            ],
+        });
+
+        this.monitoredVanities = new Map();
+        this.dataFile = "./vanity_data.json";
+        this.checkInterval = 30000;
+
+        this.setupEventHandlers();
+        this.loadData();
+    }
+
+    setupEventHandlers() {
+        this.client.once("ready", () => {
+            console.log(`${this.client.user.tag} is online!`);
+            this.startMonitoring();
+        });
+
+        this.client.on("messageCreate", async (message) => {
+            if (message.author.bot) return;
+
+            const args = message.content.slice(1).trim().split(/ +/);
+            const command = args.shift().toLowerCase();
+
+            if (message.content.startsWith(",add")) {
+                await this.handleAddCommand(message, args);
+            } else if (message.content.startsWith(",remove")) {
+                await this.handleRemoveCommand(message, args);
+            } else if (message.content.startsWith(",list")) {
+                await this.handleListCommand(message);
+            } else if (message.content.startsWith(",help")) {
+                await this.handleHelpCommand(message);
+            }
+        });
+    }
+
+    async handleAddCommand(message, args) {
+        if (args.length < 2 || args[0] !== "vanity") {
+            return message.reply(
+                "Usage: `,add vanity <vanity_url>`\nExample: `,add vanity discord-developers`",
+            );
+        }
+
+        const vanityUrl = args[1].toLowerCase().replace(/[^a-z0-9-]/g, "");
+
+        if (!vanityUrl || vanityUrl.length < 2) {
+            return message.reply(
+                "Please provide a valid vanity URL (letters, numbers, and hyphens only).",
+            );
+        }
+
+        const existingEntry = this.monitoredVanities.get(vanityUrl);
+        if (existingEntry && existingEntry.userId === message.author.id) {
+            return message.reply(
+                `You are already monitoring the vanity: **${vanityUrl}**`,
+            );
+        }
+
+        const vanityExists = await this.checkVanityExists(vanityUrl);
+        if (!vanityExists) {
+            return message.reply(
+                `The vanity **${vanityUrl}** is currently available! You can claim it now.`,
+            );
+        }
+
+        this.monitoredVanities.set(vanityUrl, {
+            userId: message.author.id,
+            channelId: message.channel.id,
+            guildId: message.guild?.id || null,
+            addedAt: Date.now(),
+        });
+
+        await this.saveData();
+
+        const embed = new EmbedBuilder()
+            .setColor("#00ff00")
+            .setTitle("✅ Vanity Added to Monitor")
+            .setDescription(`Now monitoring **${vanityUrl}** for availability`)
+            .addFields(
+                {
+                    name: "Vanity URL",
+                    value: `discord.gg/${vanityUrl}`,
+                    inline: true,
+                },
+                { name: "Status", value: "Currently taken", inline: true },
+            )
+            .setTimestamp();
+
+        message.reply({ embeds: [embed] });
+    }
+
+    async handleRemoveCommand(message, args) {
+        if (args.length < 2 || args[0] !== "vanity") {
+            return message.reply("Usage: `,remove vanity <vanity_url>`");
+        }
+
+        const vanityUrl = args[1].toLowerCase().replace(/[^a-z0-9-]/g, "");
+        const entry = this.monitoredVanities.get(vanityUrl);
+
+        if (!entry || entry.userId !== message.author.id) {
+            return message.reply(
+                `You are not monitoring the vanity: **${vanityUrl}**`,
+            );
+        }
+
+        this.monitoredVanities.delete(vanityUrl);
+        await this.saveData();
+
+        const embed = new EmbedBuilder()
+            .setColor("#ff0000")
+            .setTitle("❌ Vanity Removed from Monitor")
+            .setDescription(`Stopped monitoring **${vanityUrl}**`)
+            .setTimestamp();
+
+        message.reply({ embeds: [embed] });
+    }
+
+    async handleListCommand(message) {
+        const userVanities = Array.from(
+            this.monitoredVanities.entries(),
+        ).filter(([vanity, data]) => data.userId === message.author.id);
+
+        if (userVanities.length === 0) {
+            return message.reply(
+                "You are not monitoring any vanities. Use `,add vanity <vanity_url>` to start monitoring.",
+            );
+        }
+
+        const embed = new EmbedBuilder()
+            .setColor("#0099ff")
+            .setTitle("📋 Your Monitored Vanities")
+            .setDescription(
+                userVanities
+                    .map(([vanity]) => `• discord.gg/${vanity}`)
+                    .join("\n"),
+            )
+            .setFooter({
+                text: `Total: ${userVanities.length} vanit${userVanities.length === 1 ? "y" : "ies"}`,
+            })
+            .setTimestamp();
+
+        message.reply({ embeds: [embed] });
+    }
+
+    async handleHelpCommand(message) {
+        const embed = new EmbedBuilder()
+            .setColor("#7289da")
+            .setTitle("🤖 Vanity Monitor Bot - Help")
+            .setDescription(
+                "Monitor Discord server vanities and get notified when they become available!",
+            )
+            .addFields(
+                {
+                    name: "`,add vanity <vanity_url>`",
+                    value: "Add a vanity to monitor\nExample: `,add vanity cool-server`",
+                    inline: false,
+                },
+                {
+                    name: "`,remove vanity <vanity_url>`",
+                    value: "Remove a vanity from monitoring\nExample: `,remove vanity cool-server`",
+                    inline: false,
+                },
+                {
+                    name: "`,list`",
+                    value: "List all vanities you are monitoring",
+                    inline: false,
+                },
+                {
+                    name: "`,help`",
+                    value: "Show this help message",
+                    inline: false,
+                },
+            )
+            .setFooter({ text: "Checks every 30 seconds for availability" })
+            .setTimestamp();
+
+        message.reply({ embeds: [embed] });
+    }
+
+    async checkVanityExists(vanityUrl) {
+        try {
+            const response = await axios.get(
+                `https://discord.com/api/v10/invites/${vanityUrl}`,
+                {
+                    timeout: 5000,
+                },
+            );
+            return response.status === 200;
+        } catch (error) {
+            if (
+                error.response?.status === 404 ||
+                error.response?.data?.code === 10006
+            ) {
+                return false;
+            }
+
+            console.log(`Error checking vanity ${vanityUrl}:`, error.message);
+            return true;
+        }
+    }
+
+    startMonitoring() {
+        console.log("Starting vanity monitoring...");
+
+        setInterval(async () => {
+            for (const [vanityUrl, data] of this.monitoredVanities.entries()) {
+                try {
+                    const exists = await this.checkVanityExists(vanityUrl);
+
+                    if (!exists) {
+                        await this.notifyVanityAvailable(vanityUrl, data);
+                        this.monitoredVanities.delete(vanityUrl);
+                        await this.saveData();
+                    }
+                } catch (error) {
+                    console.error(
+                        `Error monitoring vanity ${vanityUrl}:`,
+                        error.message,
+                    );
+                }
+            }
+        }, this.checkInterval);
+    }
+
+    async notifyVanityAvailable(vanityUrl, data) {
+        try {
+            const channel = await this.client.channels.fetch(data.channelId);
+            const user = await this.client.users.fetch(data.userId);
+
+            const embed = new EmbedBuilder()
+                .setColor("#00ff00")
+                .setTitle("🎉 Vanity Available!")
+                .setDescription(
+                    `The vanity **${vanityUrl}** is now available to claim!`,
+                )
+                .addFields(
+                    {
+                        name: "Vanity URL",
+                        value: `discord.gg/${vanityUrl}`,
+                        inline: true,
+                    },
+                    {
+                        name: "Claim it at",
+                        value: "Server Settings > Overview > Vanity URL",
+                        inline: true,
+                    },
+                )
+                .setFooter({
+                    text: "Act fast - vanities can be claimed by anyone!",
+                })
+                .setTimestamp();
+
+            await channel.send({
+                content: `<@${data.userId}>`,
+                embeds: [embed],
+            });
+
+            console.log(
+                `Notified ${user.tag} that vanity ${vanityUrl} is available`,
+            );
+        } catch (error) {
+            console.error(
+                `Failed to notify about vanity ${vanityUrl}:`,
+                error.message,
+            );
+        }
+    }
+
+    async loadData() {
+        try {
+            const data = await fs.readFile(this.dataFile, "utf8");
+            const parsed = JSON.parse(data);
+            this.monitoredVanities = new Map(Object.entries(parsed));
+            console.log(
+                `Loaded ${this.monitoredVanities.size} monitored vanities`,
+            );
+        } catch (error) {
+            console.log("No existing data file found, starting fresh");
+        }
+    }
+
+    async saveData() {
+        try {
+            const dataObj = Object.fromEntries(this.monitoredVanities);
+            await fs.writeFile(this.dataFile, JSON.stringify(dataObj, null, 2));
+        } catch (error) {
+            console.error("Failed to save data:", error.message);
+        }
+    }
+
+    start(token) {
+        this.client.login(token);
+    }
+}
+
+const bot = new VanityMonitorBot();
+
+const BOT_TOKEN =
+    process.env.BOT_TOKEN ||
+    "MTM3ODc4ODIyMjIxMzI5NjE3OQ.GiOUY0.rcYaMmeRc8Nf0GFV0M02e1Yl5W5YIXnCYnXFOc";
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.get("/", (req, res) => {
+    res.json({
+        status: "online",
+        uptime: process.uptime(),
+        monitored_vanities: bot.monitoredVanities.size,
+    });
+});
+
+app.listen(port, () => {
+    console.log(`Keep-alive server running on port ${port}`);
+});
+
+bot.start(BOT_TOKEN);
+
+process.on("SIGINT", async () => {
+    console.log("Shutting down...");
+    await bot.saveData();
+    process.exit(0);
+});
+
+process.on("unhandledRejection", (error) => {
+    console.error("Unhandled promise rejection:", error);
+});
+
+process.on("uncaughtException", (error) => {
+    console.error("Uncaught exception:", error);
+    process.exit(1);
+});
