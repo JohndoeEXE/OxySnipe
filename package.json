@@ -2,9 +2,9 @@
   "name": "vanity-monitor-bot",
   "version": "1.0.0",
   "description": "Discord bot for monitoring and auto-claiming server vanity URLs",
-  "main": "index.js",
+  "main": "bot.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node bot.js",
     "dev": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
