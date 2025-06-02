@@ -1,4 +1,6 @@
 node_modules/
 .env
 vanity_data.json
+autoswap_data.json
+proxies.js
 *.log
