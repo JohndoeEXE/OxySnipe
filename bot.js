@@ -765,9 +765,9 @@ class VanityMonitorBot {
 
 const bot = new VanityMonitorBot();
 
-const BOT_TOKEN = MTM3ODc4ODIyMjIxMzI5NjE3OQ.GdWLdr.IQN-l1U0_3FJI5yEkP339YCs1rkDb-jXl1ivAY
+const BOT_TOKEN = 
     process.env.BOT_TOKEN ||
-    "MTM3ODc4ODIyMjIxMzI5NjE3OQ.GiOUY0.rcYaMmeRc8Nf0GFV0M02e1Yl5W5YIXnCYnXFOc";
+    "MTM3ODc4ODIyMjIxMzI5NjE3OQ.GdWLdr.IQN-l1U0_3FJI5yEkP339YCs1rkDb-jXl1ivAY";
 
 const app = express();
 const port = process.env.PORT || 3000;
