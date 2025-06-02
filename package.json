@@ -1,7 +1,7 @@
 {
-  "name": "discord-vanity-monitor-bot",
+  "name": "vanity-monitor-bot",
   "version": "1.0.0",
-  "description": "A Discord bot that monitors vanity URLs and automatically claims them when available",
+  "description": "Discord bot for monitoring and auto-claiming server vanity URLs",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
@@ -13,29 +13,28 @@
     "bot",
     "vanity",
     "monitor",
-    "discord.js",
-    "autoswap"
+    "discord.js"
   ],
-  "author": "oxy @bored_vampire",
+  "author": "oxy (@bored_vampire)",
   "license": "MIT",
   "dependencies": {
-    "discord.js": "^14.14.1",
-    "axios": "^1.6.2",
+    "axios": "^1.6.0",
+    "discord.js": "^14.14.0",
     "express": "^4.18.2",
     "https-proxy-agent": "^7.0.2"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "nodemon": "^3.0.1"
   },
   "engines": {
     "node": ">=16.9.0"
   },
   "repository": {
     "type": "git",
-    "url": "your-github-repo-url-here"
+    "url": "your-repo-url-here"
   },
   "bugs": {
-    "url": "your-github-repo-url-here/issues"
+    "url": "your-repo-url-here/issues"
   },
-  "homepage": "your-github-repo-url-here#readme"
+  "homepage": "your-repo-url-here#readme"
 }
