@@ -767,7 +767,7 @@ const bot = new VanityMonitorBot();
 
 const BOT_TOKEN = 
     process.env.BOT_TOKEN ||
-    "MTM3ODc4ODIyMjIxMzI5NjE3OQ.GdWLdr.IQN-l1U0_3FJI5yEkP339YCs1rkDb-jXl1ivAY";
+    "MTM3ODc4ODIyMjIxMzI5NjE3OQ.GHxMp1.04EGOzKlj3uin5Bgsphvs1VDm2cpYJS3Fvbl1E";
 
 const app = express();
 const port = process.env.PORT || 3000;
