@@ -4,3 +4,4 @@ vanity_data.json
 autoswap_data.json
 proxies.js
 *.log
+.DS_Store
